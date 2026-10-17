@@ -10,6 +10,10 @@ A shareable checklist for every item Praghasa sells for **Moonflesh** in Warfram
 - Lists all 50 shop listings with their Moonflesh price and purchase limit
 - One-time items: mark **To farm / Bought / Don't plan to farm**
 - Arcanes and repeatable packs: track copies bought (stepper / Max), or Skip the rest
+- **Plan to buy** per arcane/pack: defaults to the shop max, but you can lower it to
+  just what you want — e.g. if you already own 3 copies of an arcane, enter that in
+  **Already have** and the page sets your plan to the 18 that top you up to max rank
+  (21 total). Totals only count your planned copies.
 - Live totals: Moonflesh **spent**, **still to farm**, planned total, and skipped value
 - Search and filters, a copyable progress summary, and a two-tap reset
 
@@ -20,6 +24,11 @@ device and browser you opened the page in. Close the page and come back later an
 your checklist is still there. Nothing is uploaded anywhere, and everyone who opens
 the link gets their own separate checklist. A different browser/device, private
 browsing, or clearing browser data starts you fresh.
+
+**Updates don't wipe progress:** the storage key (`moonflesh-checklist-v1`) and all
+item ids never change between versions. New settings (like Plan to buy) are added
+with defaults that match the old behaviour, so an existing saved checklist loads
+with its progress and totals unchanged until you deliberately change a plan.
 
 ## Totals
 
