@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moonflesh Checklist — Epoch Operation: Taubound</title>
+<meta name="description" content="Checklist for every item Praghasa sells for Moonflesh in Warframe's Epoch Operation: Taubound. Tracks Moonflesh spent, still to farm, and skipped items. Progress saves in your browser.">
+<style>
+  :root{
+    --bg:#1c1e22; --panel:#26282e; --panel2:#2e3038; --line:#3a3d46;
+    --text:#e8e6e1; --muted:#a7a49c; --accent:#c9a86a; --accent2:#7fb069;
+    --danger:#c1666b; --skip:#8d8577;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+  header,main,footer{max-width:880px;margin:0 auto;padding:16px}
+  h1{font-size:1.55rem;margin:8px 0 2px}
+  .sub{color:var(--muted);margin:0 0 4px}
+  .note{color:var(--muted);font-size:.9rem}
+  .summary{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0;position:sticky;top:8px;z-index:5}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+  .stat b{display:block;font-size:1.35rem;color:var(--accent)}
+  .stat span{color:var(--muted);font-size:.85rem;text-transform:uppercase;letter-spacing:.04em}
+  .bar{height:10px;background:var(--panel2);border-radius:99px;margin-top:14px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:0;background:var(--accent2);transition:width .25s}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .controls input[type=search]{flex:1 1 220px;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text)}
+  button{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:8px;padding:8px 12px;font-size:.92rem}
+  button:hover{border-color:var(--accent)}
+  button.active{background:var(--accent);color:#1c1e22;border-color:var(--accent);font-weight:600}
+  button.armed{background:var(--danger);border-color:var(--danger);color:#fff}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 16px 16px;margin:16px 0}
+  section h2{font-size:1.1rem;margin:12px 0 2px}
+  .secsub{color:var(--muted);font-size:.88rem;margin:0 0 8px}
+  .item{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line)}
+  .item .name{flex:1 1 240px}
+  .item .name small{display:block;color:var(--muted)}
+  .cost{color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-radius:0;padding:6px 10px;background:transparent;font-size:.85rem}
+  .seg button.on-farm{background:var(--panel2);font-weight:600}
+  .seg button.on-bought{background:var(--accent2);color:#14210f;font-weight:600}
+  .seg button.on-skip{background:var(--skip);color:#14120e;font-weight:600}
+  .qty{display:inline-flex;align-items:center;gap:6px}
+  .qty button{padding:4px 10px}
+  .qty input{width:58px;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);text-align:center}
+  .item.done .name{color:var(--muted);text-decoration:line-through}
+  .item.skipped{opacity:.55}
+  .hidden{display:none!important}
+  #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--accent);color:var(--text);padding:10px 16px;border-radius:10px;display:none;max-width:90vw;z-index:9}
+  footer{color:var(--muted);font-size:.88rem}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌙 Moonflesh Checklist</h1>
+  <p class="sub">Epoch Operation: Taubound — every item Praghasa sells, Oct 15 – Nov 17, 2026</p>
+  <p class="note">Check off what you've bought. Your progress saves automatically in <b>this browser</b> (localStorage) — close the page and come back, it'll still be here. Everyone who opens this link gets their own separate checklist; nothing is uploaded or shared. Opening it in a different browser/device, private browsing, or clearing browser data will start you fresh.</p>
+</header>
+
+<main>
+  <div class="summary" aria-live="polite">
+    <div class="stats">
+      <div class="stat"><b id="st-spent">0</b><span>Moonflesh spent</span></div>
+      <div class="stat"><b id="st-farm">0</b><span>Still to farm</span></div>
+      <div class="stat"><b id="st-planned">0</b><span>Planned total</span></div>
+      <div class="stat"><b id="st-skipped">0</b><span>Skipped</span></div>
+    </div>
+    <div class="bar"><i id="st-bar"></i></div>
+    <p class="note" id="st-counts" style="margin:8px 0 0"></p>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="q" placeholder="Search items…" aria-label="Search items">
+    <button data-filter="all" class="active">All</button>
+    <button data-filter="farm">To farm</button>
+    <button data-filter="bought">Bought</button>
+    <button data-filter="skip">Skipped</button>
+  </div>
+  <div class="controls">
+    <button id="copy">Copy progress summary</button>
+    <button id="reset">Reset everything</button>
+  </div>
+
+  <div id="sections"></div>
+</main>
+
+<footer>
+  <p>Prices and purchase limits from the <a href="https://wiki.warframe.com/w/Epoch_Operation:_Taubound">official Warframe Wiki</a> (verified Oct 16, 2026); item list cross-checked against <a href="https://www.warframe.com/en/news/epoch-operation-taubound">warframe.com</a> and Shacknews. Totals: 5,950 Moonflesh for all one-time items, 6,056 for one of everything, 10,494 to buy out the whole shop at maximum limits.</p>
+  <p>Note: DE's announcement calls the 125-Moonflesh Somachord “Eris Mortem”; the wiki shop lists that slot as “Devourer”. Same item, same price. Contegorus pieces also unlock at community milestones (Greaves 30%, Pauldrons 60%, Chest Plate 90%).</p>
+  <p>Fan-made checklist, not affiliated with Digital Extremes.</p>
+</footer>
+
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+const SECTIONS = [
+  { id:"new", title:"New This Event", items:[
+    {id:"contegorus-chest", name:"Contegorus Chest Plate", cost:175, note:"Unlocks at 90% community progress"},
+    {id:"contegorus-pauldrons", name:"Contegorus Pauldrons", cost:175, note:"Unlocks at 60% community progress"},
+    {id:"contegorus-greaves", name:"Contegorus Greaves", cost:175, note:"Unlocks at 30% community progress"},
+    {id:"vacis", name:"Vacis Amp Skin", cost:375},
+    {id:"glyph-arturos", name:"Arturos Vessel Glyph", cost:100},
+    {id:"glyph-zioa", name:"Zioa Vessel Glyph", cost:100},
+    {id:"glyph-neolyst", name:"Neolyst Natah Glyph", cost:100},
+    {id:"floof", name:"Natah Neolyst Floof", cost:125},
+    {id:"eris-mortem", name:"Eris Mortem (Devourer Somachord)", cost:125},
+    {id:"khadati", name:"Khadati Sumdali", cost:250},
+    {id:"dhampyre", name:"Dhampyre Syandana", cost:500},
+    {id:"taubound-sigil", name:"Taubound Sigil", cost:100},
+    {id:"vessel-emblem", name:"Epoch Operation Vessel Emblem", cost:100},
+    {id:"honoria", name:"“The Moon Killer” Honoria", cost:175}
+  ]},
+  { id:"headliners", title:"One-Time Headliners", items:[
+    {id:"legendary-core", name:"Legendary Core", cost:500},
+    {id:"shard-crimson", name:"Tauforged Crimson Archon Shard", cost:375},
+    {id:"shard-azure", name:"Tauforged Azure Archon Shard", cost:375},
+    {id:"shard-amber", name:"Tauforged Amber Archon Shard", cost:375}
+  ]},
+  { id:"returning", title:"Returning Gear & Cosmetics", items:[
+    {id:"naktavyre-shoulder", name:"Naktavyre Shoulder Armor", cost:75},
+    {id:"naktavyre-chest", name:"Naktavyre Chest Armor", cost:75},
+    {id:"naktavyre-leg", name:"Naktavyre Leg Armor", cost:75},
+    {id:"haalvu", name:"Haalvu", cost:150},
+    {id:"valdur", name:"Valdur's Syandana", cost:175},
+    {id:"sling-stone", name:"Sling Stone Emblem", cost:75},
+    {id:"arid-fear", name:"Arid Fear Emblem", cost:75},
+    {id:"breeding-grounds", name:"Breeding Grounds Emblem", cost:75},
+    {id:"rift-sigil", name:"Rift Sigil", cost:75},
+    {id:"spectra", name:"Spectra Vandal", cost:150},
+    {id:"basmu", name:"Basmu Blueprint", cost:125},
+    {id:"cortege", name:"Cortege Supulchrax Skin", cost:125},
+    {id:"morgha", name:"Morgha Supulchrax Skin", cost:125},
+    {id:"krios", name:"Krios Signa", cost:100},
+    {id:"ballroom", name:"Ballroom Simulacrum", cost:125},
+    {id:"clan-phased", name:"Phased Clan Sigil", cost:50},
+    {id:"clan-glyphed", name:"Glyphed Clan Sigil", cost:50},
+    {id:"clan-gilded", name:"Gilded Clan Sigil", cost:50}
+  ]},
+  { id:"arcanes", title:"Arcanes (per copy)", items:[
+    {id:"arc-fortification", name:"Melee Fortification", cost:5, max:42},
+    {id:"arc-retaliation", name:"Melee Retaliation", cost:5, max:42},
+    {id:"arc-battery", name:"Arcane Battery", cost:8, max:42},
+    {id:"arc-ice-storm", name:"Arcane Ice Storm", cost:8, max:42},
+    {id:"arc-afflictions", name:"Melee Afflictions", cost:8, max:42},
+    {id:"arc-animosity", name:"Melee Animosity", cost:8, max:42},
+    {id:"arc-exposure", name:"Melee Exposure", cost:8, max:42},
+    {id:"arc-influence", name:"Melee Influence", cost:8, max:42},
+    {id:"arc-vortex", name:"Melee Vortex", cost:8, max:42},
+    {id:"arc-fortifier", name:"Secondary Fortifier", cost:8, max:42},
+    {id:"arc-surge", name:"Secondary Surge", cost:8, max:42}
+  ]},
+  { id:"packs", title:"Repeatable Packs", items:[
+    {id:"pack-kuva", name:"2,000 Kuva", cost:20, max:25},
+    {id:"pack-credits", name:"10,000 Credits", cost:3, max:100},
+    {id:"pack-endo", name:"100 Endo", cost:1, max:300}
+  ]}
+];
+const KEY = "moonflesh-checklist-v1";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ state = {}; }
+if (!state.items) state.items = {};
+
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){ toast("Could not save — browser storage is unavailable (private browsing?)"); } }
+function st(item){ return state.items[item.id] || (item.max ? {qty:0, skip:false} : {status:"farm"}); }
+
+const fmt = n => n.toLocaleString("en-US");
+const root = document.getElementById("sections");
+
+function render(){
+  root.innerHTML = "";
+  for (const sec of SECTIONS){
+    const el = document.createElement("section");
+    const maxTotal = sec.items.reduce((a,i)=> a + i.cost * (i.max||1), 0);
+    el.innerHTML = `<h2>${sec.title}</h2><p class="secsub">Section total at max: ${fmt(maxTotal)} Moonflesh</p>`;
+    for (const item of sec.items){
+      const s = st(item);
+      const row = document.createElement("div");
+      row.className = "item" + (item.max ? (s.skip ? " skipped" : (s.qty >= item.max ? " done" : "")) : (s.status === "bought" ? " done" : s.status === "skip" ? " skipped" : ""));
+      row.dataset.name = item.name.toLowerCase();
+      row.dataset.kind = item.max ? (s.skip ? "skip" : (s.qty > 0 ? "bought" : "farm")) : s.status;
+      const left = document.createElement("div");
+      left.className = "name";
+      left.innerHTML = item.name + (item.note ? `<small>${item.note}</small>` : "") + (item.max ? `<small>Up to ${item.max} purchases</small>` : "");
+      const cost = document.createElement("span");
+      cost.className = "cost";
+      cost.textContent = fmt(item.cost) + (item.max ? " ea." : "");
+      row.append(left, cost);
+      if (item.max){
+        const q = document.createElement("span"); q.className = "qty";
+        const minus = document.createElement("button"); minus.textContent = "−"; minus.setAttribute("aria-label","Buy one fewer " + item.name);
+        const inp = document.createElement("input"); inp.type = "number"; inp.min = 0; inp.max = item.max; inp.value = s.qty; inp.setAttribute("aria-label","Copies bought of " + item.name);
+        const plus = document.createElement("button"); plus.textContent = "+"; plus.setAttribute("aria-label","Buy one more " + item.name);
+        const maxb = document.createElement("button"); maxb.textContent = "Max";
+        const skipb = document.createElement("button"); skipb.textContent = s.skip ? "Skipped" : "Skip"; if (s.skip) skipb.className = "active";
+        minus.onclick = ()=>{ setQty(item, s.qty - 1); };
+        plus.onclick = ()=>{ setQty(item, s.qty + 1); };
+        maxb.onclick = ()=>{ setQty(item, item.max); };
+        inp.onchange = ()=>{ setQty(item, parseInt(inp.value||"0",10)); };
+        skipb.onclick = ()=>{ const cur = st(item); cur.skip = !cur.skip; state.items[item.id] = cur; save(); render(); };
+        q.append(minus, inp, plus, maxb, skipb);
+        row.append(q);
+      } else {
+        const seg = document.createElement("span"); seg.className = "seg";
+        for (const [val,label] of [["farm","To farm"],["bought","Bought"],["skip","Don't plan to farm"]]){
+          const b = document.createElement("button");
+          b.textContent = label;
+          if (s.status === val) b.className = "on-" + val;
+          b.onclick = ()=>{ state.items[item.id] = {status: val}; save(); render(); };
+          seg.append(b);
+        }
+        row.append(seg);
+      }
+      el.append(row);
+    }
+    root.append(el);
+  }
+  updateSummary();
+  applyFilter();
+}
+function setQty(item, qty){
+  qty = Math.max(0, Math.min(item.max, isNaN(qty) ? 0 : qty));
+  const cur = st(item); cur.qty = qty; state.items[item.id] = cur; save(); render();
+}
+function totals(){
+  let spent = 0, planned = 0, skipped = 0, boughtCount = 0, totalCount = 0;
+  for (const sec of SECTIONS) for (const item of sec.items){
+    totalCount++;
+    const s = st(item);
+    if (item.max){
+      const itemSpent = s.qty * item.cost, itemMax = item.max * item.cost;
+      spent += itemSpent;
+      if (s.skip){ planned += itemSpent; skipped += itemMax - itemSpent; }
+      else planned += itemMax;
+      if (s.qty > 0) boughtCount++;
+    } else if (s.status === "bought"){ spent += item.cost; planned += item.cost; boughtCount++; }
+    else if (s.status === "skip"){ skipped += item.cost; }
+    else planned += item.cost;
+  }
+  return {spent, planned, skipped, farm: planned - spent, boughtCount, totalCount};
+}
+function updateSummary(){
+  const t = totals();
+  document.getElementById("st-spent").textContent = fmt(t.spent);
+  document.getElementById("st-farm").textContent = fmt(t.farm);
+  document.getElementById("st-planned").textContent = fmt(t.planned);
+  document.getElementById("st-skipped").textContent = fmt(t.skipped);
+  document.getElementById("st-bar").style.width = (t.planned ? Math.round(100 * t.spent / t.planned) : 0) + "%";
+  document.getElementById("st-counts").textContent = `${t.boughtCount} of ${t.totalCount} listings started/bought · ${t.planned ? Math.round(100 * t.spent / t.planned) : 0}% of planned Moonflesh spent`;
+}
+let curFilter = "all";
+function applyFilter(){
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  document.querySelectorAll("#sections .item").forEach(row=>{
+    const matchQ = !q || row.dataset.name.includes(q);
+    const matchF = curFilter === "all" || row.dataset.kind === curFilter;
+    row.classList.toggle("hidden", !(matchQ && matchF));
+  });
+  document.querySelectorAll("#sections section").forEach(sec=>{
+    const any = [...sec.querySelectorAll(".item")].some(r => !r.classList.contains("hidden"));
+    sec.classList.toggle("hidden", !any);
+  });
+}
+document.getElementById("q").addEventListener("input", applyFilter);
+document.querySelectorAll("[data-filter]").forEach(b=>{
+  b.onclick = ()=>{ curFilter = b.dataset.filter; document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active", x===b)); applyFilter(); };
+});
+function toast(msg){
+  const t = document.getElementById("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(()=> t.style.display = "none", 3500);
+}
+document.getElementById("copy").onclick = async ()=>{
+  const t = totals();
+  const lines = [`Moonflesh checklist — Epoch Operation: Taubound`,
+    `Spent: ${fmt(t.spent)} · Still to farm: ${fmt(t.farm)} · Planned total: ${fmt(t.planned)} · Skipped: ${fmt(t.skipped)}`, "", "Bought:"];
+  let any = false;
+  for (const sec of SECTIONS) for (const item of sec.items){
+    const s = st(item);
+    if (item.max && s.qty > 0){ lines.push(`- ${item.name} ×${s.qty} (${fmt(s.qty * item.cost)})`); any = true; }
+    else if (!item.max && s.status === "bought"){ lines.push(`- ${item.name} (${fmt(item.cost)})`); any = true; }
+  }
+  if (!any) lines.push("- (nothing yet)");
+  const text = lines.join("\n");
+  try { await navigator.clipboard.writeText(text); toast("Progress summary copied."); }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select();
+    try { document.execCommand("copy"); toast("Progress summary copied."); }
+    catch(e2){ toast(text); }
+    ta.remove();
+  }
+};
+let resetArmed = false, resetTimer = null;
+document.getElementById("reset").onclick = (e)=>{
+  if (!resetArmed){
+    resetArmed = true; e.target.textContent = "Tap again to confirm reset"; e.target.classList.add("armed");
+    resetTimer = setTimeout(()=>{ resetArmed = false; e.target.textContent = "Reset everything"; e.target.classList.remove("armed"); }, 4000);
+    return;
+  }
+  clearTimeout(resetTimer); resetArmed = false;
+  state = {items:{}}; save(); render();
+  e.target.textContent = "Reset everything"; e.target.classList.remove("armed");
+  toast("Checklist reset.");
+};
+render();
+</script>
+</body>
+</html>
