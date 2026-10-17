@@ -44,6 +44,9 @@
   .qty{display:inline-flex;align-items:center;gap:6px}
   .qty button{padding:4px 10px}
   .qty input{width:58px;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);text-align:center}
+  .planrow{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:var(--muted);font-size:.9rem;padding:2px 0 4px}
+  .planrow input{width:64px;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);text-align:center}
+  .planrow button{padding:5px 10px;font-size:.85rem}
   .item.done .name{color:var(--muted);text-decoration:line-through}
   .item.skipped{opacity:.55}
   .hidden{display:none!important}
@@ -57,6 +60,7 @@
   <h1>🌙 Moonflesh Checklist</h1>
   <p class="sub">Epoch Operation: Taubound — every item Praghasa sells, Oct 15 – Nov 17, 2026</p>
   <p class="note">Check off what you've bought. Your progress saves automatically in <b>this browser</b> (localStorage) — close the page and come back, it'll still be here. Everyone who opens this link gets their own separate checklist; nothing is uploaded or shared. Opening it in a different browser/device, private browsing, or clearing browser data will start you fresh.</p>
+  <p class="note">For arcanes and repeatable packs, <b>Plan to buy</b> is how many you actually want — it defaults to the shop max, so lower it to just what you need. On arcanes you can also enter how many copies you <b>already have</b> and tap the button to set your plan to exactly the number that tops you up to max rank (21 total).</p>
 </header>
 
 <main>
@@ -164,7 +168,16 @@ try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ state =
 if (!state.items) state.items = {};
 
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){ toast("Could not save — browser storage is unavailable (private browsing?)"); } }
-function st(item){ return state.items[item.id] || (item.max ? {qty:0, skip:false} : {status:"farm"}); }
+// Backwards-compatible state: same localStorage key and same item ids as v1.
+// Old saves only have {qty, skip} (or {status}); new fields get defaults here —
+// plan defaults to the shop max, so an old save's totals do not change until
+// the user deliberately sets a smaller plan. Saved values always win.
+function st(item){
+  if (!item.max) return state.items[item.id] || {status:"farm"};
+  const saved = state.items[item.id] || {};
+  return {qty:0, skip:false, plan:item.max, have:0, ...saved};
+}
+function clampN(v, lo, hi){ v = parseInt(v, 10); return isNaN(v) ? lo : Math.max(lo, Math.min(hi, v)); }
 
 const fmt = n => n.toLocaleString("en-US");
 const root = document.getElementById("sections");
@@ -178,7 +191,7 @@ function render(){
     for (const item of sec.items){
       const s = st(item);
       const row = document.createElement("div");
-      row.className = "item" + (item.max ? (s.skip ? " skipped" : (s.qty >= item.max ? " done" : "")) : (s.status === "bought" ? " done" : s.status === "skip" ? " skipped" : ""));
+      row.className = "item" + (item.max ? (s.skip ? " skipped" : (s.plan > 0 && s.qty >= s.plan ? " done" : "")) : (s.status === "bought" ? " done" : s.status === "skip" ? " skipped" : ""));
       row.dataset.name = item.name.toLowerCase();
       row.dataset.kind = item.max ? (s.skip ? "skip" : (s.qty > 0 ? "bought" : "farm")) : s.status;
       const left = document.createElement("div");
@@ -190,18 +203,39 @@ function render(){
       row.append(left, cost);
       if (item.max){
         const q = document.createElement("span"); q.className = "qty";
+        const blab = document.createElement("span"); blab.textContent = "Bought:"; blab.style.color = "var(--muted)"; blab.style.fontSize = ".9rem";
         const minus = document.createElement("button"); minus.textContent = "−"; minus.setAttribute("aria-label","Buy one fewer " + item.name);
         const inp = document.createElement("input"); inp.type = "number"; inp.min = 0; inp.max = item.max; inp.value = s.qty; inp.setAttribute("aria-label","Copies bought of " + item.name);
         const plus = document.createElement("button"); plus.textContent = "+"; plus.setAttribute("aria-label","Buy one more " + item.name);
-        const maxb = document.createElement("button"); maxb.textContent = "Max";
+        const maxb = document.createElement("button"); maxb.textContent = "Max"; maxb.title = "Mark all planned copies as bought";
         const skipb = document.createElement("button"); skipb.textContent = s.skip ? "Skipped" : "Skip"; if (s.skip) skipb.className = "active";
-        minus.onclick = ()=>{ setQty(item, s.qty - 1); };
-        plus.onclick = ()=>{ setQty(item, s.qty + 1); };
-        maxb.onclick = ()=>{ setQty(item, item.max); };
+        minus.onclick = ()=>{ setQty(item, st(item).qty - 1); };
+        plus.onclick = ()=>{ setQty(item, st(item).qty + 1); };
+        maxb.onclick = ()=>{ setQty(item, st(item).plan); };
         inp.onchange = ()=>{ setQty(item, parseInt(inp.value||"0",10)); };
         skipb.onclick = ()=>{ const cur = st(item); cur.skip = !cur.skip; state.items[item.id] = cur; save(); render(); };
-        q.append(minus, inp, plus, maxb, skipb);
+        q.append(blab, minus, inp, plus, maxb, skipb);
         row.append(q);
+        // Plan row: how many of this item you actually want to farm/buy.
+        const pr = document.createElement("div"); pr.className = "planrow";
+        const plab = document.createElement("span"); plab.textContent = "Plan to buy:";
+        const pinp = document.createElement("input"); pinp.type = "number"; pinp.min = 0; pinp.max = item.max; pinp.value = s.plan; pinp.setAttribute("aria-label","Copies planned to buy of " + item.name);
+        pinp.onchange = ()=>{ setPlan(item, parseInt(pinp.value||"0",10)); };
+        pr.append(plab, pinp);
+        const pnote = document.createElement("span");
+        pnote.textContent = `of ${item.max} max · ${fmt(s.plan * item.cost)} Moonflesh planned`;
+        pr.append(pnote);
+        if (sec.id === "arcanes"){
+          const need = Math.max(0, 21 - clampN(s.have, 0, 21));
+          const hlab = document.createElement("span"); hlab.textContent = "Already have:";
+          const hinp = document.createElement("input"); hinp.type = "number"; hinp.min = 0; hinp.max = 21; hinp.value = s.have; hinp.setAttribute("aria-label","Copies of " + item.name + " you already own");
+          hinp.onchange = ()=>{ const cur = st(item); cur.have = clampN(hinp.value, 0, 21); state.items[item.id] = cur; save(); render(); };
+          const needb = document.createElement("button");
+          needb.textContent = `Set plan to ${need} (tops up to max rank 21)`;
+          needb.onclick = ()=>{ setPlan(item, Math.max(0, 21 - clampN(st(item).have, 0, 21))); };
+          pr.append(hlab, hinp, needb);
+        }
+        row.append(pr);
       } else {
         const seg = document.createElement("span"); seg.className = "seg";
         for (const [val,label] of [["farm","To farm"],["bought","Bought"],["skip","Don't plan to farm"]]){
@@ -221,8 +255,12 @@ function render(){
   applyFilter();
 }
 function setQty(item, qty){
-  qty = Math.max(0, Math.min(item.max, isNaN(qty) ? 0 : qty));
+  qty = clampN(qty, 0, item.max);
   const cur = st(item); cur.qty = qty; state.items[item.id] = cur; save(); render();
+}
+function setPlan(item, plan){
+  plan = clampN(plan, 0, item.max);
+  const cur = st(item); cur.plan = plan; if (plan > 0) cur.skip = false; state.items[item.id] = cur; save(); render();
 }
 function totals(){
   let spent = 0, planned = 0, skipped = 0, boughtCount = 0, totalCount = 0;
@@ -230,11 +268,12 @@ function totals(){
     totalCount++;
     const s = st(item);
     if (item.max){
-      const itemSpent = s.qty * item.cost, itemMax = item.max * item.cost;
+      const qty = clampN(s.qty, 0, item.max), plan = clampN(s.plan, 0, item.max);
+      const itemSpent = qty * item.cost;
       spent += itemSpent;
-      if (s.skip){ planned += itemSpent; skipped += itemMax - itemSpent; }
-      else planned += itemMax;
-      if (s.qty > 0) boughtCount++;
+      if (s.skip){ planned += itemSpent; skipped += Math.max(0, plan - qty) * item.cost; }
+      else planned += Math.max(plan, qty) * item.cost;
+      if (qty > 0) boughtCount++;
     } else if (s.status === "bought"){ spent += item.cost; planned += item.cost; boughtCount++; }
     else if (s.status === "skip"){ skipped += item.cost; }
     else planned += item.cost;
@@ -278,7 +317,7 @@ document.getElementById("copy").onclick = async ()=>{
   let any = false;
   for (const sec of SECTIONS) for (const item of sec.items){
     const s = st(item);
-    if (item.max && s.qty > 0){ lines.push(`- ${item.name} ×${s.qty} (${fmt(s.qty * item.cost)})`); any = true; }
+    if (item.max && s.qty > 0){ lines.push(`- ${item.name} ×${s.qty} of ${clampN(s.plan,0,item.max)} planned (${fmt(s.qty * item.cost)})`); any = true; }
     else if (!item.max && s.status === "bought"){ lines.push(`- ${item.name} (${fmt(item.cost)})`); any = true; }
   }
   if (!any) lines.push("- (nothing yet)");
