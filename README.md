@@ -16,6 +16,15 @@ A shareable checklist for every item Praghasa sells for **Moonflesh** in Warfram
   (21 total). Totals only count your planned copies.
 - Live totals: Moonflesh **spent**, **still to farm**, planned total, and skipped value
 - Search and filters, a copyable progress summary, and a two-tap reset
+- **Import progress:** paste a progress summary back in to restore what you'd
+  bought. The paste may also carry hand-added **Skipped:**, **Already have:** and
+  **Plan:** sections ("- Name" / "- Name ×N" lines). Import fills in only what
+  the text covers, leaves everything else untouched, and reports any line it
+  can't match to a shop item instead of dropping it silently.
+- **Export full summary:** like the progress summary, but it also captures
+  skipped items, plans, and already-have counts — every max item's plan appears
+  exactly once — so pasting it into Import restores the complete checklist
+  state, not just the bought part.
 
 ## How progress is saved
 

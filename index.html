@@ -50,6 +50,9 @@
   .item.done .name{color:var(--muted);text-decoration:line-through}
   .item.skipped{opacity:.55}
   .hidden{display:none!important}
+  #import-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 16px 16px;margin:16px 0}
+  #import-panel textarea{width:100%;min-height:150px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-family:inherit;font-size:.92rem}
+  #import-result{white-space:pre-wrap}
   #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--accent);color:var(--text);padding:10px 16px;border-radius:10px;display:none;max-width:90vw;z-index:9}
   footer{color:var(--muted);font-size:.88rem}
   a{color:var(--accent)}
@@ -59,7 +62,7 @@
 <header>
   <h1>🌙 Moonflesh Checklist</h1>
   <p class="sub">Epoch Operation: Taubound — every item Praghasa sells, Oct 15 – Nov 17, 2026</p>
-  <p class="note">Check off what you've bought. Your progress saves automatically in <b>this browser</b> (localStorage) — close the page and come back, it'll still be here. Everyone who opens this link gets their own separate checklist; nothing is uploaded or shared. Opening it in a different browser/device, private browsing, or clearing browser data will start you fresh.</p>
+  <p class="note">Check off what you've bought. Your progress saves automatically in <b>this browser</b> (localStorage) — close the page and come back, it'll still be here. Everyone who opens this link gets their own separate checklist; nothing is uploaded or shared. Opening it in a different browser/device, private browsing, or clearing browser data will start you fresh — but a copied progress summary can be pasted into <b>Import progress</b> to restore what you'd bought, and an <b>Export full summary</b> captures everything (bought, skipped, plans, already-have counts) for a complete restore.</p>
   <p class="note">For arcanes and repeatable packs, <b>Plan to buy</b> is how many you actually want — it defaults to the shop max, so lower it to just what you need. On arcanes you can also enter how many copies you <b>already have</b> and tap the button to set your plan to exactly the number that tops you up to max rank (21 total).</p>
 </header>
 
@@ -84,7 +87,20 @@
   </div>
   <div class="controls">
     <button id="copy">Copy progress summary</button>
+    <button id="copy-full">Export full summary</button>
+    <button id="import-toggle">Import progress</button>
     <button id="reset">Reset everything</button>
+  </div>
+
+  <div id="import-panel" class="hidden">
+    <h2 style="font-size:1.1rem;margin:12px 0 2px">Import progress</h2>
+    <p class="note">Paste a progress summary (from “Copy progress summary”), a full summary (from “Export full summary”), or either one with extra sections added by hand — <b>Skipped:</b>, <b>Already have:</b> and <b>Plan:</b>, one “- Name” or “- Name ×N” line each. Import fills in only what the text covers and leaves everything else untouched; anything it can't match to a shop item is reported back, never silently dropped. In an <b>Already have:</b> line for an arcane, the plan is also set to top you up to max rank (21 total) unless that arcane's plan is stated elsewhere in the same paste.</p>
+    <textarea id="import-text" placeholder="Paste a progress summary here…" aria-label="Progress summary to import"></textarea>
+    <div class="controls">
+      <button id="import-apply">Import</button>
+      <button id="import-cancel">Cancel</button>
+    </div>
+    <p class="note" id="import-result" role="status"></p>
   </div>
 
   <div id="sections"></div>
@@ -310,9 +326,9 @@ function toast(msg){
   const t = document.getElementById("toast"); t.textContent = msg; t.style.display = "block";
   clearTimeout(t._h); t._h = setTimeout(()=> t.style.display = "none", 3500);
 }
-document.getElementById("copy").onclick = async ()=>{
+function summaryLines(full){
   const t = totals();
-  const lines = [`Moonflesh checklist — Epoch Operation: Taubound`,
+  const lines = [`Moonflesh checklist — Epoch Operation: Taubound` + (full ? " — full export" : ""),
     `Spent: ${fmt(t.spent)} · Still to farm: ${fmt(t.farm)} · Planned total: ${fmt(t.planned)} · Skipped: ${fmt(t.skipped)}`, "", "Bought:"];
   let any = false;
   for (const sec of SECTIONS) for (const item of sec.items){
@@ -321,14 +337,121 @@ document.getElementById("copy").onclick = async ()=>{
     else if (!item.max && s.status === "bought"){ lines.push(`- ${item.name} (${fmt(item.cost)})`); any = true; }
   }
   if (!any) lines.push("- (nothing yet)");
-  const text = lines.join("\n");
-  try { await navigator.clipboard.writeText(text); toast("Progress summary copied."); }
+  if (full){
+    // Every max item's plan appears exactly once across Bought / Skipped /
+    // Plan, so a full export pasted into Import restores the whole state.
+    lines.push("", "Skipped:");
+    any = false;
+    for (const sec of SECTIONS) for (const item of sec.items){
+      const s = st(item);
+      if (item.max && s.skip){ lines.push(`- ${item.name} ×${clampN(s.qty,0,item.max)} of ${clampN(s.plan,0,item.max)} planned`); any = true; }
+      else if (!item.max && s.status === "skip"){ lines.push(`- ${item.name} (${fmt(item.cost)})`); any = true; }
+    }
+    if (!any) lines.push("- (none)");
+    lines.push("", "Already have:");
+    any = false;
+    for (const item of SECTIONS.find(x=>x.id==="arcanes").items){
+      const s = st(item);
+      if (s.have > 0){ lines.push(`- ${item.name} ×${clampN(s.have,0,21)}`); any = true; }
+    }
+    if (!any) lines.push("- (none)");
+    lines.push("", "Plan:");
+    any = false;
+    for (const sec of SECTIONS) for (const item of sec.items){
+      const s = st(item);
+      if (item.max && s.qty === 0 && !s.skip){ lines.push(`- ${item.name} ×${clampN(s.plan,0,item.max)}`); any = true; }
+    }
+    if (!any) lines.push("- (none)");
+  }
+  return lines.join("\n");
+}
+async function copyText(text, okMsg){
+  try { await navigator.clipboard.writeText(text); toast(okMsg); }
   catch(e){
     const ta = document.createElement("textarea"); ta.value = text; document.body.append(ta); ta.select();
-    try { document.execCommand("copy"); toast("Progress summary copied."); }
+    try { document.execCommand("copy"); toast(okMsg); }
     catch(e2){ toast(text); }
     ta.remove();
   }
+}
+document.getElementById("copy").onclick = ()=> copyText(summaryLines(false), "Progress summary copied.");
+document.getElementById("copy-full").onclick = ()=> copyText(summaryLines(true), "Full summary copied — it captures everything, for a complete restore via Import.");
+const byName = new Map();
+for (const sec of SECTIONS) for (const item of sec.items) byName.set(item.name.toLowerCase(), {item, secId: sec.id});
+function parseImport(text){
+  const entries = [];
+  let section = null;
+  for (const rawLine of text.split(/\r?\n/)){
+    const line = rawLine.trim();
+    const head = line.replace(/:$/, "").toLowerCase();
+    if (["bought","skipped","already have","plan"].includes(head)){ section = head; continue; }
+    if (!line.startsWith("-")) continue;
+    let s = line.replace(/^-\s*/, "").trim();
+    if (!s || s.startsWith("(")) continue;
+    let qty = null, plan = null;
+    let m = s.match(/×\s*(\d+)\s+of\s+(\d+)\s+planned/i);
+    if (m){ qty = parseInt(m[1],10); plan = parseInt(m[2],10); s = s.slice(0, m.index).trim(); }
+    else {
+      m = s.match(/×\s*(\d+)\s*$/);
+      if (m){ qty = parseInt(m[1],10); s = s.slice(0, m.index).trim(); }
+      s = s.replace(/\(\s*[\d,]+\s*\)\s*$/, "").trim();
+    }
+    entries.push({section, name: s, qty, plan});
+  }
+  return entries;
+}
+function importProgress(text){
+  const entries = parseImport(text);
+  const explicitPlan = new Set();
+  for (const e of entries){
+    const f = byName.get(e.name.toLowerCase());
+    if (f && (e.plan !== null || e.section === "plan")) explicitPlan.add(f.item.id);
+  }
+  const counts = {bought:0, skipped:0, have:0, plan:0};
+  const unmatched = [];
+  for (const e of entries){
+    const f = byName.get(e.name.toLowerCase());
+    if (!f || !e.section){ unmatched.push(e.name); continue; }
+    const {item, secId} = f;
+    if (e.section === "bought"){
+      if (item.max){ const cur = st(item); if (e.qty !== null) cur.qty = clampN(e.qty, 0, item.max); if (e.plan !== null) cur.plan = clampN(e.plan, 0, item.max); cur.skip = false; state.items[item.id] = cur; }
+      else state.items[item.id] = {status:"bought"};
+      counts.bought++;
+    } else if (e.section === "skipped"){
+      if (item.max){ const cur = st(item); if (e.qty !== null) cur.qty = clampN(e.qty, 0, item.max); if (e.plan !== null) cur.plan = clampN(e.plan, 0, item.max); cur.skip = true; state.items[item.id] = cur; }
+      else state.items[item.id] = {status:"skip"};
+      counts.skipped++;
+    } else if (e.section === "already have"){
+      if (item.max && e.qty !== null){
+        const cur = st(item); cur.have = clampN(e.qty, 0, 21);
+        if (secId === "arcanes" && !explicitPlan.has(item.id)) cur.plan = Math.max(0, 21 - cur.have);
+        state.items[item.id] = cur; counts.have++;
+      } else unmatched.push(e.name);
+    } else if (e.section === "plan"){
+      if (item.max && e.qty !== null){
+        const cur = st(item); cur.plan = clampN(e.qty, 0, item.max); if (cur.plan > 0) cur.skip = false;
+        state.items[item.id] = cur; counts.plan++;
+      } else unmatched.push(e.name);
+    }
+  }
+  if (counts.bought + counts.skipped + counts.have + counts.plan > 0){ save(); render(); }
+  return {counts, unmatched};
+}
+document.getElementById("import-toggle").onclick = ()=>{
+  document.getElementById("import-panel").classList.toggle("hidden");
+};
+document.getElementById("import-cancel").onclick = ()=>{
+  document.getElementById("import-panel").classList.add("hidden");
+};
+document.getElementById("import-apply").onclick = ()=>{
+  const res = importProgress(document.getElementById("import-text").value);
+  const el = document.getElementById("import-result");
+  const n = res.counts.bought + res.counts.skipped + res.counts.have + res.counts.plan;
+  if (!n && !res.unmatched.length){ el.textContent = "Nothing to import — no item lines found under Bought:, Skipped:, Already have: or Plan:."; return; }
+  let msg = `Imported: ${res.counts.bought} bought · ${res.counts.skipped} skipped · ${res.counts.have} already have · ${res.counts.plan} plan.`;
+  if (res.unmatched.length) msg += `\nCouldn't match ${res.unmatched.length} line(s), left out: ${res.unmatched.join("; ")}`;
+  el.textContent = msg;
+  if (n) toast("Progress imported.");
 };
 let resetArmed = false, resetTimer = null;
 document.getElementById("reset").onclick = (e)=>{
